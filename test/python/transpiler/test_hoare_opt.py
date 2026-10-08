@@ -19,7 +19,7 @@ from qiskit.utils import optionals
 from qiskit.transpiler.passes import HoareOptimizer
 from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import XGate, RZGate, CSwapGate, SwapGate
+from qiskit.circuit.library import XGate, RZGate, CSwapGate, SwapGate, CXGate
 from qiskit.dagcircuit import DAGOpNode
 from qiskit.quantum_info import Statevector
 from test import QiskitTestCase
@@ -695,6 +695,29 @@ class TestHoareOptimizer(QiskitTestCase):
         expected.x(2)
 
         self.assertEqual(simplified, expected)
+
+    def test_open_control_not_removed(self):
+        """A controlled gate with an open control (``ctrl_state=0``) is active when
+        its control qubit is in the |0> state. The optimizer must honor
+        ``ctrl_state`` instead of assuming an all-ones control, otherwise it
+        wrongly treats the gate as inactive and removes it, changing the output.
+        See: https://github.com/Qiskit/qiskit/issues/16867
+        """
+        #      open control, active when q_0 is |0>
+        # q_0: ──o──
+        #      ┌─┴─┐
+        # q_1: ┤ X ├
+        #      └───┘
+        circuit = QuantumCircuit(2)
+        circuit.append(CXGate(ctrl_state=0), [0, 1])
+
+        optimized = HoareOptimizer(size=1)(circuit)
+
+        # Starting from |00>, the open control is active, so q_1 must be flipped;
+        # the optimized circuit must produce the same state as the original.
+        self.assertTrue(
+            Statevector.from_instruction(optimized).equiv(Statevector.from_instruction(circuit))
+        )
 
 
 if __name__ == "__main__":

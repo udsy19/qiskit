@@ -378,12 +378,26 @@ class HoareOptimizer(TransformationPass):
     def _separate_ctrl_trgt(self, node):
         """Get the target qubits and control qubits if available,
         as well as their respective z3 variables.
+
+        The returned control z3 expressions already encode the gate's
+        ``ctrl_state``: control qubit ``i`` contributes its variable when bit
+        ``i`` of ``ctrl_state`` is 1 (closed control) and the negation of its
+        variable when the bit is 0 (open control). ``ctrl_state`` is
+        little-endian, so bit ``i`` corresponds to the ``i``-th control qubit.
+        This way the activation predicate ``z3.And(*ctrlvar)`` holds exactly
+        when the control qubits are in the gate's activating pattern. For the
+        default all-ones ``ctrl_state`` every control is closed, so this
+        reduces to the plain control variables.
         """
+        import z3
+
         gate = node.op
         if isinstance(gate, ControlledGate):
             numctrl = gate.num_ctrl_qubits
+            ctrl_state = gate.ctrl_state
         else:
             numctrl = 0
+            ctrl_state = 0
         ctrlqb = node.qargs[:numctrl]
         trgtqb = node.qargs[numctrl:]
         try:
@@ -392,6 +406,7 @@ class HoareOptimizer(TransformationPass):
         except KeyError:
             ctrlvar = [self.variables[qb][-1] for qb in ctrlqb]
             trgtvar = [self.variables[qb][-1] for qb in trgtqb]
+        ctrlvar = [var if (ctrl_state >> i) & 1 else z3.Not(var) for i, var in enumerate(ctrlvar)]
         return (ctrlqb, ctrlvar, trgtqb, trgtvar)
 
     def _reset(self):

@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fixed the :class:`.HoareOptimizer` transpiler pass ignoring the
+    ``ctrl_state`` of controlled gates. The pass previously built every
+    controlled gate's activation predicate assuming all-ones controls, so a
+    :class:`.ControlledGate` with one or more open controls
+    (``ctrl_state`` other than ``2 ** num_ctrl_qubits - 1``) was analyzed with
+    the wrong activation condition and could be incorrectly removed or kept,
+    changing the circuit semantics. The activation predicate now honors each
+    control's ``ctrl_state`` bit, negating the control variable for open
+    controls. See `#16867 <https://github.com/Qiskit/qiskit/issues/16867>`__.
